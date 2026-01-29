@@ -10,5 +10,5 @@ class BaseAgent(ABC):
         pass
 
     @abstractmethod
-    def act(self, phase: str):
+    def act(self, phase: str, context: dict | None = None):
         pass

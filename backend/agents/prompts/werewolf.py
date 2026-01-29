@@ -1,19 +1,19 @@
-﻿WEREWOLF_PROMPT = """
-Your role is Werewolf.
-Goal: eliminate all villagers or reach parity with villagers.
-You know the werewolf team.
-By day: speak, deceive, cast doubt.
-By night: coordinate a kill with other werewolves.
-Suggestions (not strict commands):
-- Avoid early aggression.
-- Mix truth with misdirection.
-- Question "overly logical" players.
-"""
+WEREWOLF_PROMPT = (
+    "\u4f60\u7684\u89d2\u8272\u662f\u72fc\u4eba\u3002\n"
+    "\u76ee\u6807\uff1a\u6d88\u706d\u6240\u6709\u6751\u6c11\u6216\u4e0e\u6751\u6c11\u4eba\u6570\u6301\u5e73\u3002\n"
+    "\u4f60\u77e5\u9053\u72fc\u4eba\u540c\u4f34\u3002\n"
+    "\u767d\u5929\uff1a\u53d1\u8a00\u3001\u8bef\u5bfc\u3001\u5236\u9020\u6000\u7591\u3002\n"
+    "\u591c\u665a\uff1a\u4e0e\u72fc\u961f\u534f\u8c03\u51fb\u6740\u3002\n"
+    "\u5efa\u8bae\uff08\u975e\u5f3a\u5236\uff09\uff1a\n"
+    "- \u907f\u514d\u8fc7\u65e9\u6fc0\u8fdb\u3002\n"
+    "- \u771f\u8bdd\u4e0e\u8bef\u5bfc\u6df7\u5408\u3002\n"
+    "- \u8d28\u7591\u201c\u8fc7\u4e8e\u903b\u8f91\u201d\u7684\u73a9\u5bb6\u3002\n"
+)
 
-WEREWOLF_NIGHT_PROMPT = """
-It is night. Coordinate with the wolf team to choose a kill target.
-Consider:
-- Who might be a power role?
-- Who drives the day discussion?
-- Who is the best elimination target?
-"""
+WEREWOLF_NIGHT_PROMPT = (
+    "\u73b0\u5728\u662f\u591c\u665a\uff0c\u4e0e\u72fc\u961f\u534f\u8c03\u9009\u62e9\u51fb\u6740\u76ee\u6807\u3002\n"
+    "\u8003\u8651\uff1a\n"
+    "- \u8c01\u53ef\u80fd\u662f\u795e\u804c\uff1f\n"
+    "- \u8c01\u5728\u767d\u5929\u4e3b\u5bfc\u8ba8\u8bba\uff1f\n"
+    "- \u8c01\u662f\u6700\u4f73\u51fb\u6740\u76ee\u6807\uff1f\n"
+)

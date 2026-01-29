@@ -2,6 +2,8 @@
 
     def __init__(self):
         self.events = []
+        self.speeches = []
+        self.player_names = {}
         self.suspicion = SuspicionTable()
         self.confirmed_roles = {}
         self.alive_players = set()
@@ -20,6 +22,16 @@
 
     def visible_events(self, k: int = 10):
         return self.events[-k:]
+
+    def add_speech(self, player_id: str, text: str):
+        self.speeches.append(f"{player_id}: {text}")
+
+    def visible_speeches(self):
+        return self.speeches
+
+    def set_players(self, players: list[dict]):
+        self.player_names = {p.get("id"): p.get("name") for p in players if p.get("id")}
+        self.alive_players = {p.get("id") for p in players if p.get("id") and p.get("alive", True)}
 
     def find_events_about(self, player_id, k: int = 2):
         return [

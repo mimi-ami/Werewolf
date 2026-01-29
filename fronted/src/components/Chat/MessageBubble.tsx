@@ -8,9 +8,12 @@ export function MessageBubble({ text }: { text: string }) {
     if (!text) return;
     let i = 0;
     const timer = setInterval(() => {
-      setDisplayed((prev) => prev + text[i]);
+      if (i >= text.length) {
+        clearInterval(timer);
+        return;
+      }
+      setDisplayed((prev) => prev + text.charAt(i));
       i++;
-      if (i >= text.length) clearInterval(timer);
     }, 30);
 
     return () => clearInterval(timer);

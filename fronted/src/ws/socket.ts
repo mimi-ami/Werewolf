@@ -35,6 +35,10 @@ export function sendSpeech(text: string) {
   sendMessage({ type: "SPEECH", text });
 }
 
+export function sendSkipSpeech() {
+  sendMessage({ type: "SPEECH_SKIP" });
+}
+
 export function sendVote(targetId: string) {
   sendMessage({ type: "VOTE", to: targetId });
 }
@@ -46,4 +50,8 @@ export function sendNightAction(actionType: string, target?: string) {
   };
   if (target) payload.target = target;
   sendMessage(payload);
+}
+
+export function sendConfig(playerCount: number) {
+  sendMessage({ type: "CONFIG", playerCount });
 }

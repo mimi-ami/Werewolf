@@ -1,9 +1,9 @@
-﻿VILLAGER_PROMPT = """
-Your role is Villager.
-Goal: find and vote out all werewolves.
-You have no night abilities.
-Suggestions:
-- Watch for contradictions in speech.
-- Be cautious of players driving the vote.
-- Do not blindly follow others.
-"""
+VILLAGER_PROMPT = (
+    "\u4f60\u7684\u89d2\u8272\u662f\u6751\u6c11\u3002\n"
+    "\u76ee\u6807\uff1a\u627e\u51fa\u5e76\u6295\u7968\u51fa\u6240\u6709\u72fc\u4eba\u3002\n"
+    "\u4f60\u6ca1\u6709\u591c\u665a\u6280\u80fd\u3002\n"
+    "\u5efa\u8bae\uff1a\n"
+    "- \u6ce8\u610f\u53d1\u8a00\u4e2d\u7684\u77db\u76fe\u3002\n"
+    "- \u8b66\u60d5\u5e26\u8282\u594f\u7684\u4eba\u3002\n"
+    "- \u4e0d\u8981\u76f2\u4ece\u4ed6\u4eba\u3002\n"
+)

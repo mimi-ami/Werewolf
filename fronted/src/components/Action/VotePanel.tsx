@@ -15,9 +15,11 @@ export function VotePanel() {
   return (
     <div className="absolute left-6 top-20 bg-black/50 p-4 rounded-xl border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur">
       <h3 className="mb-3 text-sm uppercase tracking-[0.3em] text-emerald-200/80">
-        Voting
+        {"\u6295\u7968"}
       </h3>
-      <div className="text-lg font-semibold mb-3">Cast your vote</div>
+      <div className="text-lg font-semibold mb-3">
+        {"\u6295\u51fa\u4f60\u7684\u4e00\u7968"}
+      </div>
       <div className="grid grid-cols-2 gap-2">
         {players
           .filter((p) => p.alive)

@@ -1,5 +1,12 @@
-ï»¿def call_llm(prompt: str):
+def call_llm(prompt: str):
     return {
-        "speech": "æˆ‘è§‰å¾—å¤§å®¶éƒ½å¾ˆå¯ç–‘ã€‚",
-        "vote": None,
+        "speech": "ÎÒ¾õµÃ´ó¼Ò¶¼ºÜ¿ÉÒÉ¡£",
+        "action": {
+            "vote": None,
+            "kill": None,
+            "check": None,
+            "guard": None,
+            "save": None,
+            "poison": None,
+        },
     }

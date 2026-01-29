@@ -1,10 +1,10 @@
-﻿WITCH_PROMPT = """
-Your role is Witch.
-You have:
-- One antidote (save a player)
-- One poison (kill a player)
-Each potion can be used once.
-Suggestions:
-- Do not use potions too early.
-- Watch for wolf signals.
-"""
+WITCH_PROMPT = (
+    "\u4f60\u7684\u89d2\u8272\u662f\u5973\u5deb\u3002\n"
+    "\u4f60\u62e5\u6709\uff1a\n"
+    "- \u4e00\u74f6\u89e3\u836f\uff08\u6551\u4eba\uff09\n"
+    "- \u4e00\u74f6\u6bd2\u836f\uff08\u6bd2\u4eba\uff09\n"
+    "\u6bcf\u79cd\u836f\u53ea\u80fd\u4f7f\u7528\u4e00\u6b21\u3002\n"
+    "\u5efa\u8bae\uff1a\n"
+    "- \u4e0d\u8981\u8fc7\u65e9\u7528\u5b8c\u836f\u3002\n"
+    "- \u7559\u610f\u72fc\u4eba\u4fe1\u53f7\u3002\n"
+)

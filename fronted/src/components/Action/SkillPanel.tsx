@@ -14,8 +14,23 @@ export function SkillPanel() {
   const setSubmitted = useGameStore((s) => s.setNightActionSubmitted);
   const setError = useGameStore((s) => s.setNightActionError);
 
+  const roleLabel: Record<string, string> = {
+    SEER: "预言家",
+    WITCH: "女巫",
+    GUARD: "守卫",
+    VILLAGER: "村民",
+    WEREWOLF: "狼人",
+  };
+  const skillLabel: Record<string, string> = {
+    CHECK: "查验",
+    SAVE: "救人",
+    POISON: "毒药",
+    GUARD: "守护",
+    WEREWOLF: "击杀",
+  };
+
   if (!skill || !role) {
-    return <div className="italic text-slate-300">Waiting for night action...</div>;
+    return <div className="italic text-slate-300">等待夜间行动...</div>;
   }
 
   const locked = pending || submitted;
@@ -35,16 +50,16 @@ export function SkillPanel() {
   return (
     <div className="bg-black/60 p-4 rounded w-80">
       <div className="mb-1 text-xs uppercase tracking-[0.35em] text-emerald-200/70 text-center">
-        Night action
+        夜间行动
       </div>
-      <div className="mb-2 text-lg text-center">Your role: {role}</div>
+      <div className="mb-2 text-lg text-center">你的身份：{roleLabel[role] ?? role}</div>
       <div className="mb-3 text-center text-sm text-white/80">
-        Available skill: {skill}
+        可用技能：{skillLabel[skill] ?? skill}
       </div>
 
       {submitted && (
         <div className="mb-3 text-center text-emerald-200 text-sm">
-          Action submitted. Waiting...
+          已提交行动，等待中...
         </div>
       )}
       {error && !pending && !submitted && (
@@ -84,7 +99,7 @@ export function SkillPanel() {
         }}
         className="w-full bg-emerald-500 text-black py-2 rounded disabled:opacity-50"
       >
-        {pending ? "Submitting..." : "Confirm action"}
+        {pending ? "提交中..." : "确认行动"}
       </button>
     </div>
   );

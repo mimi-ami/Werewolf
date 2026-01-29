@@ -1,4 +1,4 @@
-﻿from agents.base import BaseAgent
+from agents.base import BaseAgent
 from agents.memory import AgentMemory
 from agents.personality import Personality
 from agents.prompts import (
@@ -6,6 +6,8 @@ from agents.prompts import (
     WEREWOLF_PROMPT,
     SEER_PROMPT,
     VILLAGER_PROMPT,
+    WITCH_PROMPT,
+    GUARD_PROMPT,
 )
 from agents.prompts.runtime import build_runtime_prompt
 from agents.prompts.werewolf_night import build_wolf_night_prompt
@@ -15,6 +17,8 @@ ROLE_PROMPT_MAP = {
     "WEREWOLF": WEREWOLF_PROMPT,
     "SEER": SEER_PROMPT,
     "VILLAGER": VILLAGER_PROMPT,
+    "WITCH": WITCH_PROMPT,
+    "GUARD": GUARD_PROMPT,
 }
 
 class AIAgent(BaseAgent):
@@ -31,7 +35,7 @@ class AIAgent(BaseAgent):
     def observe(self, event: str):
         self.memory.add_event(event)
 
-    def act(self, phase):
+    def act(self, phase, context: dict | None = None):
         role_prompt = ROLE_PROMPT_MAP.get(self.role.name, "")
         phase_prompt = self._get_phase_prompt(phase)
 
@@ -41,7 +45,10 @@ class AIAgent(BaseAgent):
             phase_prompt,
             self.memory.summary(),
             self.memory.visible_events(),
+            self.memory.visible_speeches(),
+            self.memory.player_names,
             self.personality,
+            context or {},
         )
 
         result = call_llm(prompt)

@@ -1,4 +1,4 @@
-import { create } from "zustand";
+﻿import { create } from "zustand";
 import { NightSkill, Phase, Player, ReplayEvent, Review, Role, ServerMessage } from "../types/protocol";
 
 interface Message {
@@ -207,16 +207,34 @@ export const useGameStore = create<GameState>((set, get) => ({
       case "ROLE":
         store.setRole(msg.role);
         break;
-      case "NIGHT_SKILL":
+      case "NIGHT_SKILL": {
+        const fallbackSkill =
+          msg.skill ??
+          (msg.role === "SEER"
+            ? "CHECK"
+            : msg.role === "GUARD"
+              ? "GUARD"
+              : msg.role === "WEREWOLF"
+                ? "WEREWOLF"
+                : msg.role === "WITCH"
+                  ? "POISON"
+                  : undefined);
         set({
-          nightSkill: msg.skill,
+          role: msg.role ?? store.role,
+          nightSkill: fallbackSkill,
           nightActionPending: false,
           nightActionSubmitted: false,
           nightActionError: undefined,
         });
         break;
-      case "NIGHT_ACTION_ACK":
-        if (msg.ok) {
+      }
+      case "NIGHT_ACTION_ACK": {
+        if (msg.summary) {
+          set({ nightActionPending: false });
+        }
+        const ok = msg.ok ?? (msg.status ? msg.status === "ok" : undefined);
+        if (ok === undefined) break;
+        if (ok) {
           set({
             nightActionPending: false,
             nightActionSubmitted: true,
@@ -226,10 +244,11 @@ export const useGameStore = create<GameState>((set, get) => ({
           set({
             nightActionPending: false,
             nightActionSubmitted: false,
-            nightActionError: msg.message || "Action rejected",
+            nightActionError: msg.message || "行动被拒绝",
           });
         }
         break;
+      }
       case "REPLAY_DATA":
         set({ replayTimeline: msg.timeline, reviews: msg.reviews });
         store.startReplay();

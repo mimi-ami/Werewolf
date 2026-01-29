@@ -1,17 +1,17 @@
-﻿SEER_PROMPT = """
-Your role is Seer.
-Goal: help villagers find all werewolves.
-Ability: each night you may check one player (wolf or good).
-Only you know the check result.
-Suggestions:
-- Avoid revealing too early.
-- Use subtle hints to guide votes.
-- Beware of being targeted by wolves.
-"""
+SEER_PROMPT = (
+    "\u4f60\u7684\u89d2\u8272\u662f\u9884\u8a00\u5bb6\u3002\n"
+    "\u76ee\u6807\uff1a\u5e2e\u52a9\u6751\u6c11\u627e\u51fa\u6240\u6709\u72fc\u4eba\u3002\n"
+    "\u80fd\u529b\uff1a\u6bcf\u665a\u53ef\u67e5\u9a8c\u4e00\u540d\u73a9\u5bb6\uff08\u597d\u4eba\u6216\u72fc\u4eba\uff09\u3002\n"
+    "\u53ea\u6709\u4f60\u77e5\u9053\u67e5\u9a8c\u7ed3\u679c\u3002\n"
+    "\u5efa\u8bae\uff1a\n"
+    "- \u4e0d\u8981\u8fc7\u65e9\u81ea\u7206\u8eab\u4efd\u3002\n"
+    "- \u901a\u8fc7\u542b\u84c4\u63d0\u793a\u5f15\u5bfc\u6295\u7968\u3002\n"
+    "- \u6ce8\u610f\u88ab\u72fc\u4eba\u9488\u5bf9\u3002\n"
+)
 
-SEER_NIGHT_PROMPT = """
-It is night. Choose one player to check.
-Consider:
-- Active but vague speakers.
-- Players driving the day discussion.
-"""
+SEER_NIGHT_PROMPT = (
+    "\u73b0\u5728\u662f\u591c\u665a\uff0c\u9009\u62e9\u4e00\u540d\u73a9\u5bb6\u8fdb\u884c\u67e5\u9a8c\u3002\n"
+    "\u8003\u8651\uff1a\n"
+    "- \u53d1\u8a00\u79ef\u6781\u4f46\u542b\u7cca\u7684\u4eba\u3002\n"
+    "- \u4e3b\u5bfc\u767d\u5929\u8ba8\u8bba\u7684\u4eba\u3002\n"
+)
