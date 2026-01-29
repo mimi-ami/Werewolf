@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-0: #0b1420;
+  --bg-1: #0f1f2e;
+  --bg-2: #123247;
+  --accent: #c7a86b;
+  --accent-2: #67d1c4;
+  --ink: #e8f1f6;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: "Georgia", "Times New Roman", serif;
+  color: var(--ink);
+  background:
+    radial-gradient(1200px 700px at 20% 10%, rgba(103, 209, 196, 0.15), transparent 60%),
+    radial-gradient(900px 600px at 80% 20%, rgba(199, 168, 107, 0.12), transparent 60%),
+    linear-gradient(160deg, var(--bg-0), var(--bg-1) 50%, var(--bg-2));
+}
+
+.game-shell {
+  position: relative;
+  isolation: isolate;
+}
+
+.game-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+    radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 28px 28px, 46px 46px;
+  background-position: 0 0, 10px 10px;
+  opacity: 0.3;
+  z-index: -1;
+  pointer-events: none;
+}

@@ -1,0 +1,40 @@
+import { useGameStore } from "../../store/gameStore";
+import { sendVote } from "../../ws/socket";
+
+export function VotePanel() {
+  const phase = useGameStore((s) => s.phase);
+  const votingOpen = useGameStore((s) => s.votingOpen);
+  const players = useGameStore((s) => s.players);
+  const selfId = useGameStore((s) => s.selfId);
+  const votes = useGameStore((s) => s.votes);
+
+  if (phase !== "VOTE" || !selfId || !votingOpen) return null;
+
+  const selected = votes[selfId];
+
+  return (
+    <div className="absolute left-6 top-20 bg-black/50 p-4 rounded-xl border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur">
+      <h3 className="mb-3 text-sm uppercase tracking-[0.3em] text-emerald-200/80">
+        Voting
+      </h3>
+      <div className="text-lg font-semibold mb-3">Cast your vote</div>
+      <div className="grid grid-cols-2 gap-2">
+        {players
+          .filter((p) => p.alive)
+          .map((p) => (
+            <button
+              key={p.id}
+              onClick={() => sendVote(p.id)}
+              className={`px-3 py-2 rounded-md text-sm transition ${
+                selected === p.id
+                  ? "bg-emerald-500/90 text-black shadow"
+                  : "bg-white/10 hover:bg-white/20"
+              }`}
+            >
+              {p.name}
+            </button>
+          ))}
+      </div>
+    </div>
+  );
+}
