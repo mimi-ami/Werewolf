@@ -1,6 +1,7 @@
 ﻿import asyncio
 import contextlib
 import json
+import re
 import random
 import sys
 from collections import Counter
@@ -18,6 +19,7 @@ if str(BACKEND_ROOT) not in sys.path:
 
 from agents.ai_agent import AIAgent
 from agents.human_agent import HumanAgent
+from agents.personality import Personality
 from game.roles import Role
 
 app = FastAPI()
@@ -34,7 +36,7 @@ MIN_PLAYERS = 5
 MAX_PLAYERS = 12
 
 PLAYERS = [
-    {"id": "P1", "name": "You", "alive": True},
+    {"id": "P1", "name": "P1", "alive": True},
 ]
 
 ROLES = {}
@@ -44,11 +46,20 @@ AGENTS = {}
 class ConnectionManager:
     def __init__(self) -> None:
         self.connections = {}
+        self.spectators = set()
         self.lock = asyncio.Lock()
 
-    async def connect(self, ws: WebSocket) -> str | None:
+    async def connect(self, ws: WebSocket, mode: str | None = None) -> str | None:
         await ws.accept()
         async with self.lock:
+            if mode == "observer":
+                idx = 1
+                while f"OBS{idx}" in self.connections:
+                    idx += 1
+                pid = f"OBS{idx}"
+                self.connections[pid] = ws
+                self.spectators.add(pid)
+                return pid
             for player in PLAYERS:
                 pid = player["id"]
                 if pid not in self.connections:
@@ -59,9 +70,13 @@ class ConnectionManager:
     async def disconnect(self, player_id: str) -> None:
         async with self.lock:
             self.connections.pop(player_id, None)
+            self.spectators.discard(player_id)
 
     def is_connected(self, player_id: str) -> bool:
         return player_id in self.connections
+
+    def is_spectator(self, player_id: str) -> bool:
+        return player_id in self.spectators
 
     async def broadcast(self, event: dict) -> None:
         for pid, ws in list(self.connections.items()):
@@ -89,6 +104,7 @@ GAME = {
     "player_count": 1,
     "tick": 0,
     "timeline": [],
+    "action_log": [],
     "phase": "INIT",
     "votes": {},
     "sheriff_votes": {},
@@ -102,6 +118,7 @@ GAME = {
     "potions": {"save": True, "poison": True},
     "night_actions": {},
     "lock": asyncio.Lock(),
+    "human_player_id": "P1",
 }
 
 
@@ -110,6 +127,7 @@ def reset_game_state() -> None:
         {
             "tick": 0,
             "timeline": [],
+            "action_log": [],
             "phase": "INIT",
             "votes": {},
             "sheriff_votes": {},
@@ -122,6 +140,7 @@ def reset_game_state() -> None:
             "last_night_deaths": [],
             "potions": {"save": True, "poison": True},
             "night_actions": {},
+            "human_player_id": GAME.get("human_player_id", "P1"),
         }
     )
 
@@ -139,26 +158,40 @@ def build_roles(player_count: int) -> list[str]:
     return roles
 
 
-def configure_game(player_count: int) -> None:
+def configure_game(player_count: int, human_player_id: str | None = "P1") -> None:
     global PLAYERS, ROLES, AGENTS
 
     if player_count < MIN_PLAYERS or player_count > MAX_PLAYERS:
         raise ValueError("invalid player_count")
 
-    PLAYERS = [{"id": "P1", "name": "You", "alive": True}]
+    PLAYERS = [{"id": "P1", "name": "P1", "alive": True}]
     for i in range(2, player_count + 1):
-        PLAYERS.append({"id": f"P{i}", "name": f"AI-{i - 1}", "alive": True})
+        PLAYERS.append({"id": f"P{i}", "name": f"P{i}", "alive": True})
 
     role_list = build_roles(player_count)
     ROLES = {player["id"]: role_list[idx] for idx, player in enumerate(PLAYERS)}
 
-    AGENTS = {"P1": HumanAgent("P1")}
+    AGENTS = {}
     for player in PLAYERS:
         pid = player["id"]
-        if pid == "P1":
+        if human_player_id and pid == human_player_id:
+            AGENTS[pid] = HumanAgent(pid)
             continue
         role = Role[ROLES[pid]]
-        agent = AIAgent(pid, role)
+        personality = Personality(
+            aggressiveness=round(random.uniform(0.2, 0.9), 2),
+            deception=round(random.uniform(0.2, 0.9), 2),
+            logic=round(random.uniform(0.2, 0.9), 2),
+            tone=random.choice(["cautious", "bold", "skeptical", "warm", "cold"]),
+            quirk=random.choice([
+                "asks short questions",
+                "speaks in concise points",
+                "prefers evidence",
+                "focuses on contradictions",
+                "avoids overcommitting",
+            ]),
+        )
+        agent = AIAgent(pid, role, personality=personality)
         agent.memory.alive_players = {p["id"] for p in PLAYERS}
         AGENTS[pid] = agent
 
@@ -167,6 +200,7 @@ def configure_game(player_count: int) -> None:
         if pid in AGENTS:
             AGENTS[pid].wolf_team = wolf_ids
 
+    GAME["human_player_id"] = human_player_id
     reset_game_state()
     GAME["configured"] = True
     GAME["player_count"] = player_count
@@ -222,6 +256,9 @@ async def send_event(event: dict) -> None:
         GAME["timeline"].append({"tick": tick, "event": event})
 
     if event.get("type") == "SPEECH":
+        text = event.get("text")
+        if isinstance(text, str):
+            event["text"] = _sanitize_speech(text) or ""
         print(f"[SPEECH] {event.get('playerId')}: {event.get('text')}")
 
     observe_event(event)
@@ -233,6 +270,26 @@ async def send_private(player_id: str, event: dict) -> None:
         print(f"[SPEECH][private] {player_id}: {event.get('text')}")
     observe_event(event)
     await manager.send_to(player_id, event)
+
+
+def record_action(action: dict) -> None:
+    entry = {
+        "phase": GAME.get("phase"),
+        "night": GAME.get("night"),
+        "day": GAME.get("day"),
+    }
+    entry.update(action)
+    GAME["action_log"].append(entry)
+
+
+def is_player_mode() -> bool:
+    return bool(GAME.get("human_player_id"))
+
+
+def append_replay_event(event: dict) -> None:
+    tick = GAME["tick"]
+    GAME["tick"] += 1
+    GAME["timeline"].append({"tick": tick, "event": event})
 
 
 def build_agent_context(player_id: str, phase: str) -> dict:
@@ -266,13 +323,23 @@ def _valid_target(target: str | None) -> str | None:
     return target if target in alive else None
 
 
-def _sanitize_speech(text: str | None) -> str | None:
+def _sanitize_speech(text: str | None, speaker_id: str | None = None) -> str | None:
     if not text:
         return text
     cleaned = text.strip()
     # Drop any stray "undefined" tokens from model output.
     cleaned = cleaned.replace("undefined", "").replace("Undefined", "").replace("UNDEFINED", "")
     cleaned = cleaned.strip()
+    # Replace ambiguous single "P" with the speaker id when available.
+    if speaker_id:
+        cleaned = re.sub(r"\bP\b", speaker_id, cleaned)
+        cleaned = re.sub(r"\bP(?!\d)\b", speaker_id, cleaned)
+    # Prevent AI from claiming a living player is dead.
+    alive = set(living_player_ids())
+    for pid in alive:
+        pattern = f"{pid}.{{0,6}}(\u5df2\u6b7b|\u6b7b\u4ea1|\u6b7b\u4e86|\u51fa\u5c40|\u88ab\u6295|\u88ab\u5200)"
+        if re.search(pattern, cleaned):
+            cleaned = re.sub(pattern, f"{pid}\u4ecd\u5b58\u6d3b", cleaned)
     return cleaned
 
 
@@ -301,6 +368,30 @@ def choose_witch_poison_target() -> str | None:
     return alive_wolves[0] if alive_wolves else None
 
 
+async def send_init_to(player_id: str) -> None:
+    await manager.send_to(player_id, {
+        "type": "INIT",
+        "players": PLAYERS,
+        "selfId": player_id,
+    })
+    if manager.is_spectator(player_id):
+        await manager.send_to(player_id, {
+            "type": "ROLE_MAP",
+            "roles": {p["id"]: ROLES.get(p["id"]) for p in PLAYERS},
+        })
+    else:
+        await manager.send_to(player_id, {
+            "type": "ROLE",
+            "playerId": player_id,
+            "role": ROLES.get(player_id),
+        })
+
+
+async def broadcast_init() -> None:
+    for pid in list(manager.connections.keys()):
+        await send_init_to(pid)
+
+
 async def handle_client_messages(ws: WebSocket, player_id: str) -> None:
     try:
         while True:
@@ -315,7 +406,9 @@ async def handle_client_messages(ws: WebSocket, player_id: str) -> None:
             if msg_type == "CONFIG":
                 try:
                     count = int(msg.get("playerCount", 0))
-                    configure_game(count)
+                    observer = bool(msg.get("observer", False))
+                    human_id = None if observer else "P1"
+                    configure_game(count, human_player_id=human_id)
                 except Exception:
                     await send_private(player_id, {
                         "type": "CONFIG_ERROR",
@@ -323,16 +416,7 @@ async def handle_client_messages(ws: WebSocket, player_id: str) -> None:
                     })
                     continue
 
-                await send_private(player_id, {
-                    "type": "INIT",
-                    "players": PLAYERS,
-                    "selfId": player_id,
-                })
-                await send_private(player_id, {
-                    "type": "ROLE",
-                    "playerId": player_id,
-                    "role": ROLES.get(player_id),
-                })
+                await broadcast_init()
 
                 global game_task
                 if game_task and not game_task.done():
@@ -341,12 +425,16 @@ async def handle_client_messages(ws: WebSocket, player_id: str) -> None:
             elif msg_type == "SPEECH" and phase == "DAY":
                 if GAME.get("current_speaker") != player_id:
                     continue
+                if player_id not in living_player_ids():
+                    continue
                 text = (msg.get("text", "") or "").strip()
                 if not text:
                     text = "\uFF08\u8DF3\u8FC7\uFF09"
                 GAME["pending_speech"][player_id] = text
             elif msg_type == "SPEECH_SKIP" and phase == "DAY":
                 if GAME.get("current_speaker") != player_id:
+                    continue
+                if player_id not in living_player_ids():
                     continue
                 GAME["pending_speech"][player_id] = "\uFF08\u8DF3\u8FC7\uFF09"
             elif msg_type == "VOTE" and phase == "VOTE":
@@ -361,7 +449,15 @@ async def handle_client_messages(ws: WebSocket, player_id: str) -> None:
                     "from": player_id,
                     "to": to_id
                 })
+                record_action({
+                    "type": "VOTE",
+                    "from": player_id,
+                    "to": to_id,
+                    "source": "human",
+                })
             elif msg_type == "SHERIFF_VOTE" and phase == "SHERIFF":
+                if player_id not in living_player_ids():
+                    continue
                 to_id = msg.get("to")
                 if to_id == "ABSTAIN":
                     to_id = None
@@ -371,9 +467,22 @@ async def handle_client_messages(ws: WebSocket, player_id: str) -> None:
                     "from": player_id,
                     "to": to_id or "ABSTAIN"
                 })
+                record_action({
+                    "type": "SHERIFF_VOTE",
+                    "from": player_id,
+                    "to": to_id or "ABSTAIN",
+                    "source": "human",
+                })
             elif msg_type == "NIGHT_ACTION" and phase == "NIGHT":
                 action_type = msg.get("actionType")
                 target = msg.get("target")
+                if player_id not in living_player_ids():
+                    await send_private(player_id, {
+                        "type": "NIGHT_ACTION_ACK",
+                        "ok": False,
+                        "message": "\u4f60\u5df2\u51fa\u5c40\uff0c\u65e0\u6cd5\u884c\u52a8",
+                    })
+                    continue
                 if action_type:
                     GAME["night_actions"][player_id] = {
                         "actionType": action_type,
@@ -397,9 +506,21 @@ async def run_night(night_idx: int) -> list:
     GAME["phase"] = "NIGHT"
     GAME["night_actions"].clear()
     await send_event({"type": "PHASE", "phase": "NIGHT"})
+    await send_event({
+        "type": "SPEECH",
+        "playerId": "SYSTEM",
+        "text": "\u5929\u9ed1\u8bf7\u95ed\u773c\u3002"
+    })
+    await send_event({
+        "type": "SPEECH",
+        "playerId": "SYSTEM",
+        "text": "\u591c\u665a\u9636\u6bb5\u5f00\u59cb\u3002"
+    })
 
     # Private prompts
     for pid, role in ROLES.items():
+        if pid not in living_player_ids():
+            continue
         if not manager.is_connected(pid):
             continue
         await send_private(pid, {
@@ -410,10 +531,15 @@ async def run_night(night_idx: int) -> list:
         })
 
     # AI night actions (ordered)
+    await send_event({
+        "type": "SPEECH",
+        "playerId": "SYSTEM",
+        "text": "\u72fc\u4eba\u8bf7\u8fdb\u884c\u884c\u52a8\u3002"
+    })
     for pid, role in ROLES.items():
         if role != "WEREWOLF":
             continue
-        if pid == "P1" or pid not in AGENTS:
+        if pid == GAME.get("human_player_id") or pid not in AGENTS:
             continue
         if pid not in living_player_ids():
             continue
@@ -435,10 +561,30 @@ async def run_night(night_idx: int) -> list:
                 wolf_target_hint = target
                 break
 
+    await send_event({
+        "type": "SPEECH",
+        "playerId": "SYSTEM",
+        "text": "\u9884\u8a00\u5bb6\u8bf7\u8fdb\u884c\u67e5\u9a8c\u3002"
+    })
+    await send_event({
+        "type": "SPEECH",
+        "playerId": "SYSTEM",
+        "text": "\u5b88\u536b\u8bf7\u8fdb\u884c\u5b88\u62a4\u3002"
+    })
+    await send_event({
+        "type": "SPEECH",
+        "playerId": "SYSTEM",
+        "text": "\u5973\u5deb\u8bf7\u51b3\u5b9a\u662f\u5426\u4f7f\u7528\u89e3\u836f\u3002"
+    })
+    await send_event({
+        "type": "SPEECH",
+        "playerId": "SYSTEM",
+        "text": "\u5973\u5deb\u8bf7\u51b3\u5b9a\u662f\u5426\u4f7f\u7528\u6bd2\u836f\u3002"
+    })
     for pid, role in ROLES.items():
         if role == "WEREWOLF":
             continue
-        if pid == "P1" or pid not in AGENTS:
+        if pid == GAME.get("human_player_id") or pid not in AGENTS:
             continue
         if pid not in living_player_ids():
             continue
@@ -580,12 +726,180 @@ async def run_night(night_idx: int) -> list:
                 "target": witch_poison_target,
                 "status": "ok" if witch_poison_target else "rejected"
             })
+
+    # Record resolved night actions for end-game replay.
+    def wolf_action_status(target: str | None) -> str:
+        if not target:
+            return "rejected"
+        if target != wolf_target:
+            return "overruled"
+        if wolf_death == target:
+            return "success"
+        if guard_blocks and target == guard_target:
+            return "blocked_by_guard"
+        if witch_save and target == wolf_target:
+            return "saved_by_witch"
+        return "no_effect"
+
+    for pid, role in ROLES.items():
+        if role != "WEREWOLF":
+            continue
+        action = GAME["night_actions"].get(pid, {})
+        if action.get("actionType") != "WEREWOLF":
+            continue
+        target = action.get("target")
+        record_action({
+            "type": "NIGHT_ACTION",
+            "playerId": pid,
+            "role": "WEREWOLF",
+            "actionType": "WEREWOLF_KILL",
+            "target": target,
+            "status": wolf_action_status(target),
+        })
+
+    seer_player = next((pid for pid, role in ROLES.items() if role == "SEER"), None)
+    if seer_player:
+        action = GAME["night_actions"].get(seer_player)
+        if action and action.get("actionType") == "SEER":
+            target = action.get("target")
+            ok = bool(target and target in living_player_ids() and target != seer_player)
+            record_action({
+                "type": "NIGHT_ACTION",
+                "playerId": seer_player,
+                "role": "SEER",
+                "actionType": "SEER_CHECK",
+                "target": target,
+                "status": "ok" if ok else "rejected",
+                "resultRole": ROLES.get(target) if ok else None,
+            })
+        elif seer_target:
+            record_action({
+                "type": "NIGHT_ACTION",
+                "playerId": seer_player,
+                "role": "SEER",
+                "actionType": "SEER_CHECK",
+                "target": seer_target,
+                "status": "auto",
+                "resultRole": ROLES.get(seer_target),
+            })
+
+    guard_player = next((pid for pid, role in ROLES.items() if role == "GUARD"), None)
+    if guard_player:
+        action = GAME["night_actions"].get(guard_player)
+        if action and action.get("actionType") == "GUARD":
+            target = action.get("target")
+            ok = bool(target and target in living_player_ids())
+            status = "ok"
+            if not ok:
+                status = "rejected"
+            elif target == GAME["last_guard_target"] and len(living_player_ids()) > 1:
+                status = "rejected_same_target"
+            elif guard_blocks and target == guard_target:
+                status = "blocked_attack"
+            record_action({
+                "type": "NIGHT_ACTION",
+                "playerId": guard_player,
+                "role": "GUARD",
+                "actionType": "GUARD_PROTECT",
+                "target": target,
+                "status": status,
+            })
+        elif guard_target:
+            status = "blocked_attack" if guard_blocks and guard_target == wolf_target else "auto"
+            record_action({
+                "type": "NIGHT_ACTION",
+                "playerId": guard_player,
+                "role": "GUARD",
+                "actionType": "GUARD_PROTECT",
+                "target": guard_target,
+                "status": status,
+            })
+
+    witch_player = next((pid for pid, role in ROLES.items() if role == "WITCH"), None)
+    if witch_player:
+        action = GAME["night_actions"].get(witch_player)
+        if action and action.get("actionType") == "WITCH_SAVE":
+            record_action({
+                "type": "NIGHT_ACTION",
+                "playerId": witch_player,
+                "role": "WITCH",
+                "actionType": "WITCH_SAVE",
+                "target": wolf_target if action else None,
+                "status": "ok" if witch_save else "rejected",
+            })
+        elif action and action.get("actionType") == "WITCH_POISON":
+            target = action.get("target")
+            record_action({
+                "type": "NIGHT_ACTION",
+                "playerId": witch_player,
+                "role": "WITCH",
+                "actionType": "WITCH_POISON",
+                "target": target,
+                "status": "ok" if witch_poison_target == target else "rejected",
+            })
+
+    # Public timeline summary for end-game replay.
+    def _who_did_what() -> list[str]:
+        parts = []
+        wolf_lines = []
+        for pid, role in ROLES.items():
+            if role != "WEREWOLF":
+                continue
+            action = GAME["night_actions"].get(pid, {})
+            if action.get("actionType") != "WEREWOLF":
+                continue
+            target = action.get("target")
+            if target:
+                wolf_lines.append(f"{pid}刀了{target}")
+        if wolf_lines:
+            parts.append("狼人请进行行动：" + "，".join(wolf_lines) + "。")
+
+        if seer_player:
+            target = seer_target or (GAME["night_actions"].get(seer_player, {}) or {}).get("target")
+            if target:
+                parts.append(f"预言家进行查验：{seer_player}验了{target}。")
+
+        if guard_player:
+            target = guard_target or (GAME["night_actions"].get(guard_player, {}) or {}).get("target")
+            if target:
+                parts.append(f"守卫进行守护：{guard_player}守了{target}。")
+
+        if witch_player:
+            action = GAME["night_actions"].get(witch_player, {})
+            if action.get("actionType") == "WITCH_SAVE":
+                target = wolf_target if wolf_target else "无人"
+                parts.append(f"女巫使用解药：{witch_player}救了{target}。")
+            elif action.get("actionType") == "WITCH_POISON":
+                target = action.get("target")
+                if target:
+                    parts.append(f"女巫使用毒药：{witch_player}毒了{target}。")
+        return parts
+
+    if is_player_mode():
+        for line in _who_did_what():
+            append_replay_event({
+                "type": "SPEECH",
+                "playerId": "SYSTEM",
+                "text": line,
+            })
+    else:
+        for line in _who_did_what():
+            await send_event({
+                "type": "SPEECH",
+                "playerId": "SYSTEM",
+                "text": line,
+            })
     return list(dict.fromkeys(deaths))
 
 
 async def run_day(day_idx: int, night_deaths: list) -> None:
     GAME["phase"] = "DAY"
     await send_event({"type": "PHASE", "phase": "DAY"})
+    await send_event({
+        "type": "SPEECH",
+        "playerId": "SYSTEM",
+        "text": "\u5929\u4eae\u4e86\u3002"
+    })
 
     if night_deaths:
         report_text = f"\u6628\u591c\u6b7b\u4ea1\uff1a{'、'.join(night_deaths)}\u3002"
@@ -609,18 +923,19 @@ async def run_day(day_idx: int, night_deaths: list) -> None:
             await send_event({"type": "THINKING", "playerId": pid})
             await asyncio.sleep(0.4)
         await send_event({"type": "SPEECH_START", "playerId": pid})
-        if pid == "P1" and manager.is_connected(pid):
-            for _ in range(60):  # ~15s
-                if pid in GAME["pending_speech"]:
+        if pid == GAME.get("human_player_id") and manager.is_connected(pid):
+            while pid not in GAME["pending_speech"]:
+                # Wait for user input; do not auto-skip on a timer.
+                if not manager.is_connected(pid):
                     break
-                await asyncio.sleep(0.25)
+                await asyncio.sleep(0.2)
             text = GAME["pending_speech"].pop(pid, None) or "\uFF08\u8DF3\u8FC7\uFF09"
         else:
             agent = AGENTS.get(pid)
             context = build_agent_context(pid, "DAY")
             result = await _agent_act(agent, "DAY", context) if agent else {}
             speech = result.get("speech") if isinstance(result, dict) else None
-            speech = _sanitize_speech(speech)
+            speech = _sanitize_speech(speech, pid)
             text = speech or "\uFF08\u8DF3\u8FC7\uFF09"
         await send_event({
             "type": "SPEECH",
@@ -652,6 +967,12 @@ async def run_sheriff_election() -> None:
         GAME["sheriff_votes"][pid] = target
         await asyncio.sleep(0.2)
         await send_event({"type": "SHERIFF_VOTE", "from": pid, "to": target or "ABSTAIN"})
+        record_action({
+            "type": "SHERIFF_VOTE",
+            "from": pid,
+            "to": target or "ABSTAIN",
+            "source": "ai",
+        })
 
     await asyncio.sleep(1)
 
@@ -674,6 +995,11 @@ async def run_vote() -> str | None:
     GAME["phase"] = "VOTE"
     GAME["votes"].clear()
     await send_event({"type": "PHASE", "phase": "VOTE"})
+    await send_event({
+        "type": "SPEECH",
+        "playerId": "SYSTEM",
+        "text": "\u5f00\u59cb\u6295\u7968\u3002"
+    })
 
     # AI votes for non-connected players
     alive = living_player_ids()
@@ -692,6 +1018,12 @@ async def run_vote() -> str | None:
         GAME["votes"][pid] = target
         await asyncio.sleep(0.2)
         await send_event({"type": "VOTE", "from": pid, "to": target})
+        record_action({
+            "type": "VOTE",
+            "from": pid,
+            "to": target,
+            "source": "ai",
+        })
 
     # Allow players to vote (wait until everyone votes or timeout).
     required = set(living_player_ids())
@@ -706,8 +1038,18 @@ async def run_vote() -> str | None:
         target = random.choice(list(required))
         GAME["votes"][pid] = target
         await send_event({"type": "VOTE", "from": pid, "to": target})
+        record_action({
+            "type": "VOTE",
+            "from": pid,
+            "to": target,
+            "source": "auto",
+        })
 
     await send_event({"type": "VOTE_END"})
+
+    # Defensive: drop votes from dead players.
+    alive_set = set(living_player_ids())
+    GAME["votes"] = {voter: target for voter, target in GAME["votes"].items() if voter in alive_set}
 
     if not GAME["votes"]:
         return None
@@ -738,6 +1080,7 @@ async def game_loop() -> None:
     for round_idx in range(max_rounds):
         if not manager.connections:
             break
+        print(f"[GAME] Round {round_idx} start")
         GAME["night"] = round_idx
         night_deaths = await run_night(round_idx)
         GAME["last_night_deaths"] = list(night_deaths)
@@ -746,13 +1089,27 @@ async def game_loop() -> None:
         GAME["day"] = round_idx + 1
         await run_day(round_idx + 1, night_deaths)
         result = check_win()
+        print(f"[GAME] After day {round_idx + 1}, result={result}")
         if result:
             break
 
+        print("[GAME] Starting vote phase")
         execute_id = await run_vote()
+        print(f"[GAME] Vote ended, execute_id={execute_id}")
         if execute_id:
             mark_dead(execute_id)
             await send_event({"type": "DEATH", "playerId": execute_id})
+            await send_event({
+                "type": "SPEECH",
+                "playerId": "SYSTEM",
+                "text": f"\u6295\u7968\u5904\u51b3\uff1a{execute_id}\u51fa\u5c40\u3002"
+            })
+        else:
+            await send_event({
+                "type": "SPEECH",
+                "playerId": "SYSTEM",
+                "text": "\u6295\u7968\u7ed3\u679c\u5e73\u7968\uff0c\u672c\u8f6e\u65e0\u4eba\u51fa\u5c40\u3002"
+            })
 
         result = check_win()
         if result:
@@ -765,7 +1122,13 @@ async def game_loop() -> None:
     await send_event({
         "type": "REPLAY_DATA",
         "timeline": list(GAME["timeline"]),
-        "reviews": {}
+        "actionLog": list(GAME["action_log"]),
+        "reviews": {},
+        "result": result,
+        "finalRoles": [
+            {"id": p["id"], "name": p["name"], "role": ROLES.get(p["id"])}
+            for p in PLAYERS
+        ]
     })
 
     await send_event({
@@ -783,7 +1146,8 @@ async def game_loop() -> None:
 async def ws_endpoint(ws: WebSocket):
     global game_task
 
-    player_id = await manager.connect(ws)
+    mode = ws.query_params.get("mode")
+    player_id = await manager.connect(ws, mode=mode)
     if not player_id:
         await ws.close()
         return
@@ -791,17 +1155,7 @@ async def ws_endpoint(ws: WebSocket):
     listener_task = asyncio.create_task(handle_client_messages(ws, player_id))
 
     if GAME["configured"]:
-        await ws.send_text(json.dumps({
-            "type": "INIT",
-            "players": PLAYERS,
-            "selfId": player_id
-        }))
-
-        await ws.send_text(json.dumps({
-            "type": "ROLE",
-            "playerId": player_id,
-            "role": ROLES.get(player_id)
-        }))
+        await send_init_to(player_id)
 
         if game_task is None or game_task.done():
             game_task = asyncio.create_task(game_loop())
