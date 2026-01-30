@@ -1,6 +1,6 @@
 import { useGameStore } from "../../store/gameStore";
 import { sendSkipSpeech, sendSpeech } from "../../ws/socket";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { MessageBubble } from "./MessageBubble";
 
 export function ChatPanel() {
@@ -8,27 +8,38 @@ export function ChatPanel() {
   const players = useGameStore((s) => s.players);
   const thinkingPlayer = useGameStore((s) => s.thinkingPlayer);
   const [text, setText] = useState("");
+  const [isComposing, setIsComposing] = useState(false);
   const phase = useGameStore((s) => s.phase);
+  const viewerMode = useGameStore((s) => s.viewerMode);
+  const listRef = useRef<HTMLDivElement | null>(null);
 
-  const inputDisabled = phase !== "DAY";
+  const inputDisabled = phase !== "DAY" || viewerMode !== "PLAYER";
   const nameMap = useMemo(
     () => new Map(players.map((p) => [p.id, p.name])),
     [players]
   );
 
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [messages.length]);
+
   return (
-    <div className="w-[320px] m-6 bg-black/45 p-4 rounded-2xl border border-white/10 shadow-[0_20px_70px_rgba(0,0,0,0.55)] flex flex-col backdrop-blur">
+    <div className="w-[360px] m-6 bg-black/45 p-5 rounded-2xl border border-white/10 shadow-[0_20px_70px_rgba(0,0,0,0.55)] flex flex-col backdrop-blur">
       <div className="mb-3 flex items-center justify-between">
-        <div className="text-sm uppercase tracking-[0.35em] text-slate-300/80">
+        <div className="text-base uppercase tracking-[0.35em] text-slate-300/80">
           {"\u804a\u5929"}
         </div>
-        <div className="text-xs text-emerald-200/70">
+        <div className="text-sm text-emerald-200/70">
           {inputDisabled ? "\u7981\u8a00" : "\u5f00\u653e"}
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto space-y-3 pr-1">
-        {messages.map((m, i) => {
+      <div ref={listRef} className="flex-1 overflow-auto space-y-3 pr-1">
+        {messages
+          .filter((m) => m.playerId === "SYSTEM")
+          .map((m, i) => {
           const cleaned =
             typeof m.text === "string"
               ? m.text.replace(/undefined/gi, "").trim()
@@ -38,15 +49,17 @@ export function ChatPanel() {
             m.playerId === "SYSTEM"
               ? "\u7cfb\u7edf"
               : name
-                ? `${m.playerId} \u00b7 ${name}`
+                ? name === m.playerId
+                  ? m.playerId
+                  : `${m.playerId} \u00b7 ${name}`
                 : m.playerId;
           return (
             <div key={i} className="rounded-lg bg-white/5 px-3 py-2">
-              <div className="text-xs uppercase tracking-[0.2em] text-emerald-200/70">
+              <div className="text-sm uppercase tracking-[0.2em] text-emerald-200/70">
                 {displayName}
               </div>
-              <div className="text-sm text-white/90">
-                <MessageBubble text={cleaned} />
+              <div className="text-base text-white/90 chat-text">
+                <MessageBubble text={cleaned} instant />
               </div>
             </div>
           );
@@ -61,16 +74,24 @@ export function ChatPanel() {
 
       <input
         disabled={inputDisabled}
-        className="mt-4 p-3 rounded-lg text-black disabled:opacity-50"
+        className="mt-4 p-3 rounded-lg text-base text-black disabled:opacity-50"
         value={text}
         onChange={(e) => setText(e.target.value)}
+        onCompositionStart={() => setIsComposing(true)}
+        onCompositionEnd={() => setIsComposing(false)}
         placeholder={
           inputDisabled
             ? "\u804a\u5929\u5df2\u5173\u95ed"
             : "\u8f93\u5165\u4f60\u7684\u6d88\u606f..."
         }
         onKeyDown={(e) => {
-          if (e.key === "Enter" && text.trim() && !inputDisabled) {
+          if (
+            e.key === "Enter" &&
+            text.trim() &&
+            !inputDisabled &&
+            !isComposing &&
+            !(e.nativeEvent as any).isComposing
+          ) {
             sendSpeech(text);
             setText("");
           }
@@ -78,7 +99,7 @@ export function ChatPanel() {
       />
       <button
         disabled={inputDisabled}
-        className="mt-3 w-full rounded-lg bg-white/10 py-2 text-sm hover:bg-white/20 disabled:opacity-50"
+        className="mt-3 w-full rounded-lg bg-white/10 py-2 text-base hover:bg-white/20 disabled:opacity-50"
         onClick={() => {
           if (inputDisabled) return;
           sendSkipSpeech();

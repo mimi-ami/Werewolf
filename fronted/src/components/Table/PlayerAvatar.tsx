@@ -6,6 +6,8 @@ export function PlayerAvatar({ player }: { player: Player }) {
   const thinking = useGameStore((s) => s.thinkingPlayer === player.id);
   const speaking = useGameStore((s) => s.speakingPlayer === player.id);
   const votes = useGameStore((s) => s.votes);
+  const roleMap = useGameStore((s) => s.roleMap);
+  const viewerMode = useGameStore((s) => s.viewerMode);
 
   const votedBy = Object.entries(votes)
     .filter(([_, to]) => to === player.id)
@@ -15,7 +17,7 @@ export function PlayerAvatar({ player }: { player: Player }) {
     <div className="relative">
       <div
         className={classNames(
-          "w-16 h-16 rounded-full flex items-center justify-center border-2 text-sm tracking-wide shadow-lg transition-all",
+          "w-20 h-20 rounded-full flex items-center justify-center border-2 text-base tracking-wide shadow-lg transition-all",
           {
             "bg-slate-600 text-slate-200 border-slate-400/60": !player.alive,
             "bg-[radial-gradient(circle_at_30%_30%,#7fd1c1,transparent_60%),#1e4b46] text-amber-50 border-amber-200/60":
@@ -29,8 +31,14 @@ export function PlayerAvatar({ player }: { player: Player }) {
         {player.name}
       </div>
 
+      {viewerMode === "OBSERVER" && roleMap?.[player.id] && (
+        <div className="mt-1 text-center text-xs text-emerald-200/80">
+          {roleMap[player.id]}
+        </div>
+      )}
+
       {votedBy.length > 0 && (
-        <div className="absolute -top-2 -right-2 bg-red-600 text-xs px-2 rounded-full shadow">
+        <div className="absolute -top-2 -right-2 bg-red-600 text-sm px-2 rounded-full shadow">
           {votedBy.length}
         </div>
       )}

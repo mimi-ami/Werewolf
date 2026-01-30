@@ -23,10 +23,19 @@ export interface Review {
   if_play_again?: string;
 }
 
+export interface FinalRole {
+  id: string;
+  name: string;
+  role: Role;
+}
+
+export type GameResult = "VILLAGERS_WIN" | "WEREWOLVES_WIN" | "DRAW";
+
 
 
 export type ServerMessage =
   | { type: "ROLE"; role: Role; playerId?: string }
+  | { type: "ROLE_MAP"; roles: Record<string, Role> }
   | { type: "NIGHT_SKILL"; skill?: NightSkill; role?: Role; hint?: string; playerId?: string }
   | {
       type: "NIGHT_ACTION_ACK";
@@ -55,4 +64,10 @@ export type ServerMessage =
   | { type: "CONFIG_REQUIRED"; minPlayers: number; maxPlayers: number }
   | { type: "CONFIG_ERROR"; message: string }
   | { type: "REVIEW"; data: any }
-  | { type: "REPLAY_DATA"; timeline: ReplayEvent[]; reviews: Record<string, Review> }
+  | {
+      type: "REPLAY_DATA";
+      timeline: ReplayEvent[];
+      reviews: Record<string, Review>;
+      finalRoles?: FinalRole[];
+      result?: GameResult;
+    }

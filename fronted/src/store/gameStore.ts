@@ -1,5 +1,5 @@
 ﻿import { create } from "zustand";
-import { NightSkill, Phase, Player, ReplayEvent, Review, Role, ServerMessage } from "../types/protocol";
+import { FinalRole, GameResult, NightSkill, Phase, Player, ReplayEvent, Review, Role, ServerMessage } from "../types/protocol";
 
 interface Message {
   playerId: string;
@@ -9,6 +9,8 @@ interface Message {
 interface GameState {
   players: Player[];
   selfId?: string;
+  viewerMode?: "PLAYER" | "OBSERVER";
+  roleMap?: Record<string, Role>;
   phase: Phase;
 
   thinkingPlayer?: string;
@@ -35,6 +37,8 @@ interface GameState {
   setNightActionError(message?: string): void;
 
   setPlayers(players: Player[], selfId: string): void;
+  setViewerMode(mode: "PLAYER" | "OBSERVER"): void;
+  setRoleMap(roles: Record<string, Role>): void;
   setPhase(phase: Phase): void;
 
   setThinking(playerId?: string): void;
@@ -47,6 +51,8 @@ interface GameState {
   clearVotes(): void;
 
   replayTimeline?: ReplayEvent[];
+  finalRoles?: FinalRole[];
+  result?: GameResult;
   reviews?: Record<string, Review>;
   replayIndex: number;
   replaying: boolean;
@@ -60,11 +66,15 @@ interface GameState {
 export const useGameStore = create<GameState>((set, get) => ({
   players: [],
   phase: "NIGHT",
+  viewerMode: undefined,
+  roleMap: undefined,
   messages: [],
   votes: {},
   voteCounts: {},
   votingOpen: false,
   replayTimeline: undefined,
+  finalRoles: undefined,
+  result: undefined,
   reviews: undefined,
   replayIndex: 0,
   replaying: false,
@@ -80,6 +90,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   setNightActionError: (message) => set({ nightActionError: message }),
 
   setPlayers: (players, selfId) => set({ players, selfId }),
+  setViewerMode: (mode) => set({ viewerMode: mode }),
+  setRoleMap: (roles) => set({ roleMap: roles }),
 
   setPhase: (phase) =>
     set({ phase }),
@@ -91,10 +103,16 @@ export const useGameStore = create<GameState>((set, get) => ({
     set({ speakingPlayer: playerId, thinkingPlayer: undefined }),
 
   addMessage: (playerId, text) =>
-    set((s) => ({
-      messages: [...s.messages, { playerId, text }],
-      speakingPlayer: playerId,
-    })),
+    set((s) => {
+      const cleaned =
+        typeof text === "string"
+          ? text.replace(/undefined/gi, "").trim()
+          : text;
+      return {
+        messages: [...s.messages, { playerId, text: cleaned }],
+        speakingPlayer: playerId,
+      };
+    }),
 
   markDead: (playerId) =>
     set((s) => ({
@@ -152,6 +170,7 @@ export const useGameStore = create<GameState>((set, get) => ({
             players: msg.players,
             selfId: msg.selfId,
             phase: "NIGHT",
+            roleMap: undefined,
             messages: [],
             votes: {},
             voteCounts: {},
@@ -164,15 +183,17 @@ export const useGameStore = create<GameState>((set, get) => ({
             role: undefined,
             nightSkill: undefined,
             nightTarget: undefined,
-            replayTimeline: undefined,
-            reviews: undefined,
+      replayTimeline: undefined,
+      finalRoles: undefined,
+      result: undefined,
+      reviews: undefined,
           });
         } else {
           store.setPlayers(msg.players, msg.selfId);
         }
         break;
       case "PHASE":
-        set({
+        set((s) => ({
           phase: msg.phase,
           thinkingPlayer: undefined,
           speakingPlayer: undefined,
@@ -182,7 +203,11 @@ export const useGameStore = create<GameState>((set, get) => ({
           nightActionSubmitted: false,
           nightActionError: undefined,
           votingOpen: msg.phase === "VOTE",
-        });
+          messages:
+            msg.phase === "NIGHT"
+              ? s.messages.filter((m) => m.playerId === "SYSTEM")
+              : s.messages,
+        }));
         if (msg.phase === "VOTE") store.clearVotes();
         break;
       case "THINKING":
@@ -206,6 +231,10 @@ export const useGameStore = create<GameState>((set, get) => ({
         break;
       case "ROLE":
         store.setRole(msg.role);
+        store.addMessage("SYSTEM", `\u4f60\u7684\u8eab\u4efd\uff1a${msg.role}`);
+        break;
+      case "ROLE_MAP":
+        store.setRoleMap(msg.roles);
         break;
       case "NIGHT_SKILL": {
         const fallbackSkill =
@@ -250,7 +279,12 @@ export const useGameStore = create<GameState>((set, get) => ({
         break;
       }
       case "REPLAY_DATA":
-        set({ replayTimeline: msg.timeline, reviews: msg.reviews });
+        set({
+          replayTimeline: msg.timeline,
+          reviews: msg.reviews,
+          finalRoles: msg.finalRoles,
+          result: msg.result,
+        });
         store.startReplay();
         break;
       case "REVIEW":

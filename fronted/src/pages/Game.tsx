@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import { connectWS, sendConfig } from "../ws/socket";
+﻿import { useEffect, useState } from "react";
+import { connectWS, sendConfigWithMode } from "../ws/socket";
+import { useGameStore } from "../store/gameStore";
 import { RoundTable } from "../components/Table/RoundTable";
 import { ChatPanel } from "../components/Chat/ChatPanel";
 import { PhaseBanner } from "../components/Phase/PhaseBanner";
@@ -9,53 +10,84 @@ import { NightOverlay } from "../components/Phase/NightOverlay";
 import { ReplayControls } from "../components/Replay/ReplayControls";
 import { ReplayEngine } from "../components/Replay/ReplayEngine";
 import { ReviewPanel } from "../components/Replay/ReviewPanel";
+import { ReplaySummary } from "../components/Replay/ReplaySummary";
 
 export function Game() {
   const [configured, setConfigured] = useState(false);
   const [playerCount, setPlayerCount] = useState(5);
+  const [mode, setMode] = useState<"PLAYER" | "OBSERVER">("PLAYER");
+  const setViewerMode = useGameStore((s) => s.setViewerMode);
 
   useEffect(() => {
-    connectWS();
-  }, []);
+    connectWS(mode);
+    setViewerMode(mode);
+  }, [mode, setViewerMode]);
 
   return (
     <div className="game-shell w-screen h-screen text-white flex">
       {!configured && (
-        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/70 backdrop-blur">
-          <div className="w-[360px] rounded-2xl border border-white/10 bg-[#0f1b24] p-6 shadow-[0_30px_80px_rgba(0,0,0,0.6)]">
-            <div className="text-xs uppercase tracking-[0.35em] text-emerald-200/70 mb-2 text-center">
+          <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/70 backdrop-blur">
+          <div className="w-[420px] rounded-2xl border border-white/10 bg-[#0f1b24] p-7 shadow-[0_30px_80px_rgba(0,0,0,0.6)]">
+            <div className="text-sm uppercase tracking-[0.35em] text-emerald-200/70 mb-2 text-center">
               {"\u6e38\u620f\u8bbe\u7f6e"}
             </div>
-            <div className="text-xl font-semibold text-center mb-4">
+            <div className="text-2xl font-semibold text-center mb-4">
+              {"\u9009\u62e9\u6e38\u73a9\u6a21\u5f0f"}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              <button
+                className={`px-3 py-2 rounded-lg text-base ${
+                  mode === "PLAYER"
+                    ? "bg-emerald-500 text-black"
+                    : "bg-white/10 hover:bg-white/20"
+                }`}
+                onClick={() => setMode("PLAYER")}
+              >
+                {"\u73a9\u5bb6\u89c6\u89d2"}
+              </button>
+              <button
+                className={`px-3 py-2 rounded-lg text-base ${
+                  mode === "OBSERVER"
+                    ? "bg-emerald-500 text-black"
+                    : "bg-white/10 hover:bg-white/20"
+                }`}
+                onClick={() => setMode("OBSERVER")}
+              >
+                {"\u4e0a\u5e1d\u89c6\u89d2"}
+              </button>
+            </div>
+
+            <div className="text-2xl font-semibold text-center mb-4">
               {"\u9009\u62e9\u73a9\u5bb6\u4eba\u6570"}
             </div>
             <div className="flex items-center justify-between gap-3 mb-6">
               <button
-                className="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20"
+                className="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-base"
                 onClick={() => setPlayerCount((c) => Math.max(5, c - 1))}
               >
                 -
               </button>
-              <div className="text-2xl font-semibold">
+              <div className="text-3xl font-semibold">
                 {playerCount}{" \u4eba"}
               </div>
               <button
-                className="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20"
+                className="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-base"
                 onClick={() => setPlayerCount((c) => Math.min(12, c + 1))}
               >
                 +
               </button>
             </div>
             <button
-              className="w-full rounded-lg bg-emerald-500 text-black py-2 font-semibold"
+              className="w-full rounded-lg bg-emerald-500 text-black py-2.5 text-base font-semibold"
               onClick={() => {
-                sendConfig(playerCount);
+                sendConfigWithMode(playerCount, mode === "OBSERVER");
                 setConfigured(true);
               }}
             >
               {"\u5f00\u59cb\u6e38\u620f"}
             </button>
-            <div className="mt-3 text-xs text-slate-300/70 text-center">
+            <div className="mt-3 text-sm text-slate-300/70 text-center">
               {"\u6700\u5c11 5 \u4eba"}
             </div>
           </div>
@@ -63,12 +95,15 @@ export function Game() {
       )}
       <div className="flex-1 relative px-6 py-6">
         <PhaseBanner />
-        <RoundTable />
+        <div className="h-full flex items-center justify-center">
+          <RoundTable />
+        </div>
         <VotePanel />
         <VoteResultPanel />
         <NightOverlay />
         <ReplayEngine />
         <ReplayControls />
+        <ReplaySummary />
         <ReviewPanel />
       </div>
       <ChatPanel />

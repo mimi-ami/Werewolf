@@ -7,6 +7,8 @@
 - WebSocket 实时对局状态同步
 - 基础对局流程：夜晚行动、白天发言、警长竞选与投票处决
 - 多角色能力示例：狼人、预言家、女巫、守卫
+- 玩家视角与上帝视角（观战模式）切换
+- 赛后回放与身份公开
 - 前后端分离，便于扩展
 
 ## Tech Stack
@@ -22,7 +24,22 @@
 
 ## Quick Start
 
-### 1) 启动后端
+### 1) 安装依赖
+
+后端依赖：
+
+```bash
+pip install -r backend/requirements.txt
+```
+
+前端依赖：
+
+```bash
+cd fronted
+npm install
+```
+
+### 2) 启动后端
 
 进入 `backend` 目录后运行：
 
@@ -38,12 +55,11 @@ python backend/run_server.py
 
 后端 WebSocket 地址：`ws://localhost:8000/ws`
 
-### 2) 启动前端
+### 3) 启动前端
 
 进入 `fronted` 目录后运行：
 
 ```bash
-npm install
 npm run dev
 ```
 
@@ -51,8 +67,11 @@ npm run dev
 
 ## Notes
 
-- `backend/requirements.txt` 目前为空，请按实际需要补齐依赖（至少需要 `fastapi` 与 `uvicorn`）。
-- `backend/config/llm.yaml` 与 `backend/config/game.yaml` 为预留配置文件，目前内容为空。
+- 若要启用真实大模型，请在项目根目录或 `backend/` 下提供 `.env`，至少包含：
+  - `OPENAI_API_KEY`
+  - `OPENAI_API_BASE`（可选，默认 `https://api.openai.com/v1`）
+  - `OPENAI_MODEL`（可选，默认 `deepseek-v3.2`）
+- 未提供 API Key 时会自动使用本地 mock 行为，便于离线演示。
 
 ## Dev Guide
 
@@ -62,5 +81,7 @@ npm run dev
 
 ## FAQ
 
-- 启动后端报依赖缺失：请先安装 `fastapi`、`uvicorn`。
+- 启动后端报依赖缺失：请先执行 `pip install -r backend/requirements.txt`。
 - 前端无法连接后端：请确认后端端口与 WebSocket 地址一致，且后端已启动。
+
+

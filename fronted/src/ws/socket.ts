@@ -2,15 +2,26 @@ import { useGameStore } from "../store/gameStore";
 import { ServerMessage } from "../types/protocol";
 
 let socket: WebSocket | undefined;
+let currentMode: "PLAYER" | "OBSERVER" | undefined;
+let pendingMessages: string[] = [];
 
 function sendMessage(payload: unknown) {
   if (!socket || socket.readyState !== WebSocket.OPEN) {
+    pendingMessages.push(JSON.stringify(payload));
     return;
   }
   socket.send(JSON.stringify(payload));
 }
 
-export function connectWS() {
+export function connectWS(mode?: "PLAYER" | "OBSERVER") {
+  if (mode && currentMode && currentMode !== mode && socket) {
+    try {
+      socket.close();
+    } catch {
+      // ignore
+    }
+    socket = undefined;
+  }
   if (socket && socket.readyState === WebSocket.OPEN) return;
   if (socket && socket.readyState === WebSocket.CONNECTING) return;
   if (socket && socket.readyState === WebSocket.CLOSING) return;
@@ -18,7 +29,24 @@ export function connectWS() {
     socket = undefined;
   }
 
-  socket = new WebSocket("ws://localhost:8000/ws");
+  const url =
+    mode === "OBSERVER"
+      ? "ws://localhost:8000/ws?mode=observer"
+      : "ws://localhost:8000/ws";
+  socket = new WebSocket(url);
+  currentMode = mode;
+  socket.onopen = () => {
+    if (pendingMessages.length > 0) {
+      for (const msg of pendingMessages) {
+        try {
+          socket?.send(msg);
+        } catch {
+          // ignore
+        }
+      }
+      pendingMessages = [];
+    }
+  };
 
   socket.onmessage = (event) => {
     try {
@@ -54,4 +82,8 @@ export function sendNightAction(actionType: string, target?: string) {
 
 export function sendConfig(playerCount: number) {
   sendMessage({ type: "CONFIG", playerCount });
+}
+
+export function sendConfigWithMode(playerCount: number, observer: boolean) {
+  sendMessage({ type: "CONFIG", playerCount, observer });
 }

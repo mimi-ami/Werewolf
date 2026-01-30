@@ -20,12 +20,56 @@ body,
 }
 
 body {
-  font-family: "Georgia", "Times New Roman", serif;
+  font-family: "Georgia", "Times New Roman", "Noto Serif SC", "Source Han Serif SC",
+    "Songti SC", "SimSun", "Microsoft YaHei", serif;
+  font-size: 17px;
+  line-height: 1.6;
   color: var(--ink);
   background:
-    radial-gradient(1200px 700px at 20% 10%, rgba(103, 209, 196, 0.15), transparent 60%),
-    radial-gradient(900px 600px at 80% 20%, rgba(199, 168, 107, 0.12), transparent 60%),
-    linear-gradient(160deg, var(--bg-0), var(--bg-1) 50%, var(--bg-2));
+    radial-gradient(1000px 700px at 15% 15%, rgba(103, 209, 196, 0.18), transparent 60%),
+    radial-gradient(900px 700px at 85% 18%, rgba(199, 168, 107, 0.16), transparent 60%),
+    radial-gradient(700px 500px at 50% 85%, rgba(78, 120, 180, 0.12), transparent 55%),
+    linear-gradient(160deg, var(--bg-0), var(--bg-1) 45%, var(--bg-2));
+}
+
+.chat-text {
+  font-family: "Microsoft YaHei", "Noto Sans SC", "Source Han Sans SC",
+    "PingFang SC", "Hiragino Sans GB", "SimSun", sans-serif;
+}
+
+.speech-bubble {
+  position: absolute;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(10, 12, 16, 0.82);
+  color: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(6px);
+  line-height: 1.35;
+  white-space: pre-wrap;
+}
+
+.speech-bubble::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  width: 10px;
+  height: 10px;
+  background: rgba(10, 12, 16, 0.82);
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  transform: translateX(-50%) rotate(-45deg);
+}
+
+.speech-bubble--square {
+  width: 170px;
+  min-height: 88px;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .game-shell {
@@ -38,11 +82,11 @@ body {
   position: absolute;
   inset: 0;
   background-image:
-    radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
-    radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-  background-size: 28px 28px, 46px 46px;
+    radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px),
+    radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 30px 30px, 54px 54px;
   background-position: 0 0, 10px 10px;
-  opacity: 0.3;
+  opacity: 0.35;
   z-index: -1;
   pointer-events: none;
 }
